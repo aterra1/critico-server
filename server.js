@@ -1,4 +1,5 @@
 const express = require('express');
+import fetch from "node-fetch"
 
 const apiURL = 'https://api.movie.com.uy/api/shows/rss/data'
 const app = express();
@@ -8,7 +9,18 @@ app.get('/shows', (req, res) => {
   fetch(apiURL)
     .then(response => response.json())
     .then(data => {
-        const desc = getMovieDescription(data)
+        const desc = getMovieTitles(data)
+       return res.json(desc);
+        
+    })
+    .catch(error => res.status(500).json({ error: 'Error al obtener los datos de la API' }));
+});
+
+app.get('/poster', (req, res) => {
+  fetch(apiURL)
+    .then(response => response.json())
+    .then(data => {
+        const desc = getMoviePosterURL(data)
        return res.json(desc);
         
     })
