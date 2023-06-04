@@ -1,5 +1,5 @@
 const express = require('express');
-import fetch from "node-fetch"
+
 
 const apiURL = 'https://api.movie.com.uy/api/shows/rss/data'
 const app = express();
