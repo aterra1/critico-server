@@ -1,9 +1,23 @@
 const express = require('express');
-
+const firebase = require('firebase')
 
 const apiURL = 'https://api.movie.com.uy/api/shows/rss/data'
 const app = express();
 const PORT = 3000;
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCphEXFWSWHR1d--C-iIrT7fMPyT1vh1U0",
+  authDomain: "critico-db.firebaseapp.com",
+  projectId: "critico-db",
+  storageBucket: "critico-db.appspot.com",
+  messagingSenderId: "719151759897",
+  appId: "1:719151759897:web:227df10a843a9c1db0e088",
+  measurementId: "G-GB0WC0M273"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const db = firebase.firestore();
 
 app.get('/shows', (req, res) => {
   fetch(apiURL)
@@ -15,6 +29,25 @@ app.get('/shows', (req, res) => {
     })
     .catch(error => res.status(500).json({ error: 'Error al obtener los datos de la API' }));
 });
+
+app.get('/consultaBD', (req, res) => {
+  (async()=>{
+    try{
+      let response = []
+
+      await db.collection('movies').get().then(querysnapshot =>{
+        let docs = querysnapshot.docs;
+
+        for(let doc of docs){
+          response.push(doc.data())
+        }
+        return res.status(200).send(response)
+      })
+    }catch(error){
+      return res.status(500).send(error)
+    }
+  })
+})
 
 app.get('/poster', (req, res) => {
   fetch(apiURL)
