@@ -1,23 +1,24 @@
 const express = require('express');
-const firebase = require('firebase')
+var admin = require("firebase-admin");
+
+var serviceAccount = require("./critico-db-firebase-adminsdk-95z8u-405cb947e8.json");
+
+
 
 const apiURL = 'https://api.movie.com.uy/api/shows/rss/data'
 const app = express();
 const PORT = 3000;
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCphEXFWSWHR1d--C-iIrT7fMPyT1vh1U0",
-  authDomain: "critico-db.firebaseapp.com",
-  projectId: "critico-db",
-  storageBucket: "critico-db.appspot.com",
-  messagingSenderId: "719151759897",
-  appId: "1:719151759897:web:227df10a843a9c1db0e088",
-  measurementId: "G-GB0WC0M273"
-};
 
-firebase.initializeApp(firebaseConfig);
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
 
-const db = firebase.firestore();
+   // The database URL depends on the location of the database
+  databaseURL: "https://critico-db.firebaseio.com"
+});
+
+
+const db = admin.firestore();
 
 app.get('/shows', (req, res) => {
   fetch(apiURL)
@@ -30,24 +31,31 @@ app.get('/shows', (req, res) => {
     .catch(error => res.status(500).json({ error: 'Error al obtener los datos de la API' }));
 });
 
-app.get('/consultaBD', (req, res) => {
-  (async()=>{
-    try{
-      let response = []
-
-      await db.collection('movies').get().then(querysnapshot =>{
-        let docs = querysnapshot.docs;
-
-        for(let doc of docs){
-          response.push(doc.data())
-        }
-        return res.status(200).send(response)
-      })
-    }catch(error){
-      return res.status(500).send(error)
+app.get('/consultaDB', async (req, res) => {
+  try {
+    const moviesRef = db.collection('movies');
+    const snapshot = await moviesRef.get();
+    
+    if (snapshot.empty) {
+      console.log('No se encontraron documentos en la colección "movies".');
+      return res.status(404).send('No se encontraron películas.');
     }
-  })
-})
+    
+    const movies = [];
+    snapshot.forEach(doc => {
+      const movieData = doc.data();
+      movies.push(movieData);
+    });
+    
+    return res.status(200).json(movies);
+  } catch (error) {
+    console.error('Error al realizar la consulta a la base de datos:', error);
+    return res.status(500).send('Error al obtener los datos de la base de datos');
+  }
+});
+
+
+
 
 app.get('/poster', (req, res) => {
   fetch(apiURL)
