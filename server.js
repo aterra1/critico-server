@@ -55,14 +55,32 @@ app.get('/consultaDB', async (req, res) => {
 });
 
 
-
-
 app.get('/poster', (req, res) => {
   fetch(apiURL)
     .then(response => response.json())
     .then(data => {
         const desc = getMoviePosterURL(data)
        return res.json(desc);
+        
+    })
+    .catch(error => res.status(500).json({ error: 'Error al obtener los datos de la API' }));
+});
+
+
+
+app.get('/posterTitle', (req, res) => {
+  fetch(apiURL)
+    .then(response => response.json())
+    .then(data => {
+        const  poster = getMoviePosterURL(data)
+        const  titles = getMovieTitles(data)
+
+        const movieData = [];
+        for (let i = 0; i < titles.length; i++) {
+          movieData.push([titles[i], poster[i]]);
+        }
+
+       return res.json(movieData);
         
     })
     .catch(error => res.status(500).json({ error: 'Error al obtener los datos de la API' }));
