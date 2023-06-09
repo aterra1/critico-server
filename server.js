@@ -27,11 +27,28 @@ app.get('/shows', (req, res) => {
         const desc = getMovieTitles(data)
         //insertMoviesToDatabase()
         const movieTitles = getMovieTitles(data);
-        const moviesToUpdate = cinemashowsActualization(movieTitles);
+       // const moviesToUpdate = cinemashowsActualization(movieTitles);
+       // agregarPeliculas(data)
+       ObtainMoviesTittlePosterBD() 
        return res.json(desc);
         
     })
     .catch(error => res.status(500).json({ error: 'Error al obtener los datos de la API' }));
+});
+
+app.get('/titlesPosterDB', async (req, res) => {
+  try {
+    const response = await fetch(apiURL);
+    const data = await response.json();
+
+    const desc = await ObtainMoviesTittlePosterBD();
+    console.log(desc);
+    
+    return res.json(desc);
+  } catch (error) {
+    console.error('Error al obtener los datos de la API:', error);
+    return res.status(500).json({ error: 'Error al obtener los datos de la API' });
+  }
 });
 
 app.get('/consultaDB', async (req, res) => {
@@ -91,6 +108,12 @@ app.listen(PORT, () => {
   console.log(`Servidor Express en ejecución en http://localhost:${PORT}`);
 });
 
+
+
+
+
+
+
 function getMovieTitles(json) {
     const movieTitles = [];
   
@@ -119,6 +142,8 @@ function getMovieTitles(json) {
     return movieDataTable;
   }
 
+
+
   //poster
   function getMoviePosterURL(json) {
     const movieDataTable = [];
@@ -133,6 +158,8 @@ function getMovieTitles(json) {
   
     return movieDataTable;
   }
+
+
 
   //trailer
   function getMovieTrailerURL(json) {
@@ -150,7 +177,8 @@ function getMovieTitles(json) {
   }
 
 
-  //asigno cinemaShoes = false a todas las peliculas que no esten en la lista
+
+  //asigno cinemaShoes = false a todas las peliculas que no esten en la lista y true si estan 
   async function cinemashowsActualization(data) {
     try {
       // Obtener todas las películas de la base de datos
@@ -187,6 +215,55 @@ function getMovieTitles(json) {
     }
   }
   
+  async function agregarPeliculas(data) {
+    try {
+      // Obtener todas las películas de la base de datos
+      const snapshot = await db.collection('movies').get();
+      const existingMovies = [];
+  
+      // Obtener los títulos de las películas existentes en la base de datos
+      snapshot.forEach((doc) => {
+        const movie = doc.data();
+        const movieTitle = movie.title;
+        existingMovies.push(movieTitle);
+      });
+  
+      const moviesToAdd = [];
+  
+      // Verificar cada película en la respuesta de la API
+      data.contentCinemaShows.forEach((movieData) => {
+        const movieTitle = movieData.movie;
+  
+        // Verificar si el título de la película no está en la lista de películas existentes
+        if (!existingMovies.includes(movieTitle)) {
+          // Crear un objeto con los datos de la película a agregar
+          const newMovie = {
+            cinemaShows: true,
+            description: movieData.description,
+            poster: movieData.posterURL,
+            title: movieData.movie,
+            trailer: movieData.trailerURL
+          };
+  
+          // Agregar la película a la lista de películas a agregar
+          moviesToAdd.push(newMovie);
+        }
+      });
+      
+      // Agregar las películas a la base de datos
+      const batch = db.batch();
+      moviesToAdd.forEach((movieData) => {
+        const newMovieRef = db.collection('movies').doc();
+        batch.set(newMovieRef, movieData);
+      });
+      await batch.commit();
+  
+      return moviesToAdd;
+    } catch (error) {
+      console.error('Error al agregar las películas a la base de datos:', error);
+      throw new Error('Error al agregar las películas a la base de datos');
+    }
+  }
   
   
 
@@ -201,7 +278,6 @@ function getMovieTitles(json) {
       const descriptions = getMovieDescription(data);
       const trailerURL = getMovieTrailerURL(data);
       
-  
       const movies = [];
       for (let i = 0; i < movieTitles.length; i++) {
         const movie = {
@@ -222,6 +298,27 @@ function getMovieTitles(json) {
     } catch (error) {
       console.error('Error al obtener los datos de la API o guardar en la base de datos:', error);
       throw new Error('Error al obtener los datos de la API o guardar en la base de datos');
+    }
+  }
+  
+// consulto la base de datos para que me retorne las tuplas titulo y posterURL en formato json
+  async function ObtainMoviesTittlePosterBD() {
+    try {
+      const snapshot = await db.collection('movies').where('cinemaShows', '==', true).get();
+  
+      const movies = [];
+  
+      snapshot.forEach((doc) => {
+        const movieData = doc.data();
+        const movieTitle = movieData.title;
+        const moviePosterURL = movieData.poster;
+        movies.push({ title: movieTitle, posterURL: moviePosterURL });
+      });
+  
+      return movies;
+    } catch (error) {
+      console.error('Error al obtener las películas en cinemaShows:', error);
+      throw new Error('Error al obtener las películas en cinemaShows');
     }
   }
   
