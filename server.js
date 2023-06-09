@@ -25,6 +25,9 @@ app.get('/shows', (req, res) => {
     .then(response => response.json())
     .then(data => {
         const desc = getMovieTitles(data)
+        //insertMoviesToDatabase()
+        const movieTitles = getMovieTitles(data);
+        const moviesToUpdate = cinemashowsActualization(movieTitles);
        return res.json(desc);
         
     })
@@ -65,8 +68,6 @@ app.get('/poster', (req, res) => {
     })
     .catch(error => res.status(500).json({ error: 'Error al obtener los datos de la API' }));
 });
-
-
 
 app.get('/posterTitle', (req, res) => {
   fetch(apiURL)
@@ -147,3 +148,80 @@ function getMovieTitles(json) {
   
     return movieDataTable;
   }
+
+
+  //asigno cinemaShoes = false a todas las peliculas que no esten en la lista
+  async function cinemashowsActualization(data) {
+    try {
+      // Obtener todas las películas de la base de datos
+      const snapshot = await db.collection('movies').get();
+      const moviesToUpdate = [];
+  
+      // Verificar cada película en la base de datos
+      snapshot.forEach((doc) => {
+        const movie = doc.data();
+        const movieTitle = movie.title;
+  
+        // Verificar si el título de la película está en la lista de títulos a actualizar
+        if (data.includes(movieTitle)) {
+          // La película está en la lista, actualizar el estado a true
+          movie.cinemaShows = true;
+          moviesToUpdate.push(movie);
+  
+          // Actualizar la película en la base de datos
+          db.collection('movies').doc(doc.id).update({ cinemaShows: true });
+        } else {
+          // La película no está en la lista, actualizar el estado a false
+          movie.cinemaShows = false;
+          moviesToUpdate.push(movie);
+  
+          // Actualizar la película en la base de datos
+          db.collection('movies').doc(doc.id).update({ cinemaShows: false });
+        }
+      });
+  
+      return moviesToUpdate;
+    } catch (error) {
+      console.error('Error al obtener las películas de la base de datos o actualizar el estado:', error);
+      throw new Error('Error al obtener las películas de la base de datos o actualizar el estado');
+    }
+  }
+  
+  
+  
+
+  // ingreso todas las peliculas en la base de datos
+  async function insertMoviesToDatabase() {
+    try {
+      const response = await fetch(apiURL);
+      const data = await response.json();
+  
+      const movieTitles = getMovieTitles(data);
+      const posterURLs = getMoviePosterURL(data);
+      const descriptions = getMovieDescription(data);
+      const trailerURL = getMovieTrailerURL(data);
+      
+  
+      const movies = [];
+      for (let i = 0; i < movieTitles.length; i++) {
+        const movie = {
+          title: movieTitles[i],
+          poster: posterURLs[i],
+          description: descriptions[i],
+          trailer: trailerURL[i],
+          cinemaShows: true
+        };
+        
+        movies.push(movie);
+  
+        // Guardar la película en la base de datos
+        await db.collection('movies').add(movie);
+      }
+  
+      return movies;
+    } catch (error) {
+      console.error('Error al obtener los datos de la API o guardar en la base de datos:', error);
+      throw new Error('Error al obtener los datos de la API o guardar en la base de datos');
+    }
+  }
+  
