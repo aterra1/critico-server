@@ -1,6 +1,7 @@
 const express = require('express');
 var admin = require("firebase-admin");
 const cors = require("cors")
+const bodyParser = require('body-parser');
 var serviceAccount = require("./critico-db-firebase-adminsdk-95z8u-405cb947e8.json");
 
 
@@ -40,11 +41,17 @@ app.get('/shows', (req, res) => {
 
 
 
-// Ruta para recibir una consulta por nombre de película
-app.get('/consultaPelicula', async (req, res) => {
+
+
+
+
+app.use(bodyParser.json());
+
+// Ruta para recibir una consulta por nombre de película usando POST
+app.post('/consultaPelicula', async (req, res) => {
   try {
-    const nombrePelicula = req.query.nombre;
-    
+    const nombrePelicula = req.body.nombre;
+
     // Realizar la consulta a la base de datos para obtener la película con el nombre dado
     const snapshot = await db.collection('movies').where('title', '==', nombrePelicula).get();
 
@@ -52,20 +59,23 @@ app.get('/consultaPelicula', async (req, res) => {
       console.log('No se encontró la película en la base de datos.');
       return res.status(404).send('No se encontró la película.');
     }
-    
+
     const peliculas = [];
-    
+
     snapshot.forEach(doc => {
       const peliculaData = doc.data();
       peliculas.push(peliculaData);
     });
-    
+
     return res.status(200).json(peliculas);
   } catch (error) {
     console.error('Error al realizar la consulta a la base de datos:', error);
     return res.status(500).send('Error al obtener los datos de la base de datos');
   }
 });
+
+
+
 
 
 
