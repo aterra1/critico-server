@@ -1,6 +1,6 @@
 const express = require('express');
 var admin = require("firebase-admin");
-
+const cors = require("cors")
 var serviceAccount = require("./critico-db-firebase-adminsdk-95z8u-405cb947e8.json");
 
 
@@ -9,6 +9,7 @@ const apiURL = 'https://api.movie.com.uy/api/shows/rss/data'
 const app = express();
 const PORT = 3000;
 
+app.use(cors());
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -42,7 +43,6 @@ app.get('/titlesPosterDB', async (req, res) => {
     const data = await response.json();
 
     const desc = await ObtainMoviesTittlePosterBD();
-    console.log(desc);
     
     return res.json(desc);
   } catch (error) {
@@ -215,6 +215,7 @@ function getMovieTitles(json) {
     }
   }
   
+  // esta es la funcion que vamos a utilizar para agregar peliculas
   async function agregarPeliculas(data) {
     try {
       // Obtener todas las películas de la base de datos
