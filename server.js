@@ -40,11 +40,6 @@ app.get('/shows', (req, res) => {
 
 
 
-
-
-
-
-
 app.use(bodyParser.json());
 
 // Ruta para recibir una consulta por nombre de película usando POST
@@ -60,14 +55,9 @@ app.post('/consultaPelicula', async (req, res) => {
       return res.status(404).send('No se encontró la película.');
     }
 
-    const peliculas = [];
+    
 
-    snapshot.forEach(doc => {
-      const peliculaData = doc.data();
-      peliculas.push(peliculaData);
-    });
-
-    return res.status(200).json(peliculas);
+    return res.status(200).json(snapshot);
   } catch (error) {
     console.error('Error al realizar la consulta a la base de datos:', error);
     return res.status(500).send('Error al obtener los datos de la base de datos');
