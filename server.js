@@ -55,9 +55,10 @@ app.post('/consultaPelicula', async (req, res) => {
       return res.status(404).send('No se encontró la película.');
     }
 
+    const pelicula = snapshot.docs[0].data();
     
 
-    return res.status(200).json(snapshot);
+    return res.status(200).json(pelicula);
   } catch (error) {
     console.error('Error al realizar la consulta a la base de datos:', error);
     return res.status(500).send('Error al obtener los datos de la base de datos');
