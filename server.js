@@ -9,6 +9,7 @@ var serviceAccount = require("./critico-db-firebase-adminsdk-95z8u-405cb947e8.js
 const apiURL = 'https://api.movie.com.uy/api/shows/rss/data'
 const app = express();
 const PORT = 3000;
+let apiData;
 
 app.use(cors());
 
@@ -19,8 +20,101 @@ admin.initializeApp({
   databaseURL: "https://critico-db.firebaseio.com"
 });
 
-
 const db = admin.firestore();
+
+// funcion que actualiza la informacion recolectada desde la api
+function updateAPIData() {
+  fetch(apiURL)
+    .then(response => response.json())
+    .then(data => {
+      apiData = data; // Actualizo la variable apiData
+      console.log('API data acyualizada correctamente:');
+    })
+    .catch(error => {
+      console.error('Error al actualziar api:', error);
+    });
+}
+
+const interval = 10 * 60 * 60 * 1000; // 10 hours in milliseconds
+setInterval(updateAPIData, interval);
+
+// ejecuto por primera vez para actualizar la api
+updateAPIData();
+
+app.use(bodyParser.json());
+
+
+// Ruta para recibir una consulta por nombre de película usando POST
+app.post('/serchMovie', async (req, res) => {
+  try {
+    const nombrePelicula = req.body.nombre;
+
+    // Realizar la consulta a la base de datos para obtener la película con el nombre dado
+    const snapshot = await db.collection('movies').where('title', '==', nombrePelicula).get();
+
+    if (snapshot.empty) {
+      console.log('No se encontró la película en la base de datos.');
+      return res.status(404).send('No se encontró la película.');
+    }
+
+    const pelicula = snapshot.docs[0].data();
+    
+
+    return res.status(200).json(pelicula);
+  } catch (error) {
+    console.error('Error al realizar la consulta a la base de datos:', error);
+    return res.status(500).send('Error al obtener los datos de la base de datos');
+  }
+});
+
+app.post('/makeReview', async (req, res) => {
+  try {
+    const { userName, title, review, rate } = req.body;
+
+    // Verificar si ya existe una reseña del usuario a la película
+    const querySnapshot = await db.collection('review')
+      .where('userName', '==', userName)
+      .where('title', '==', title)
+      .get();
+
+    if (!querySnapshot.empty) {
+      // Si existe una reseña, actualizar los campos 'rate' y 'review'
+      const docId = querySnapshot.docs[0].id;
+      await db.collection('review').doc(docId).update({
+        rate,
+        review
+      });
+
+      return res.status(200).send('La reseña se ha actualizado correctamente.');
+    }
+
+    // Si no existe una reseña, crear un nuevo documento en la colección 'review'
+    await db.collection('review').add({
+      userName,
+      title,
+      review,
+      rate
+    });
+
+    return res.status(200).send('La reseña se ha guardado correctamente.');
+  } catch (error) {
+    console.error('Error al guardar o actualizar la reseña en la base de datos:', error);
+    return res.status(500).send('Error al guardar o actualizar la reseña en la base de datos');
+  }
+});
+
+
+
+
+
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 
 app.get('/shows', (req, res) => {
   fetch(apiURL)
@@ -40,7 +134,6 @@ app.get('/shows', (req, res) => {
 
 
 
-app.use(bodyParser.json());
 
 // Ruta para recibir una consulta por nombre de película usando POST
 app.post('/consultaPelicula', async (req, res) => {
