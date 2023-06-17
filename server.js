@@ -22,19 +22,6 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// funcion que actualiza la informacion recolectada desde la api
-function updateAPIData() {
-  fetch(apiURL)
-    .then(response => response.json())
-    .then(data => {
-      apiData = data; // Actualizo la variable apiData
-      console.log('API data acyualizada correctamente:');
-    })
-    .catch(error => {
-      console.error('Error al actualziar api:', error);
-    });
-}
-
 const interval = 10 * 60 * 60 * 1000; // 10 hours in milliseconds
 setInterval(updateAPIData, interval);
 
@@ -43,29 +30,6 @@ updateAPIData();
 
 app.use(bodyParser.json());
 
-
-// Ruta para recibir una consulta por nombre de película usando POST
-app.post('/serchMovie', async (req, res) => {
-  try {
-    const nombrePelicula = req.body.nombre;
-
-    // Realizar la consulta a la base de datos para obtener la película con el nombre dado
-    const snapshot = await db.collection('movies').where('title', '==', nombrePelicula).get();
-
-    if (snapshot.empty) {
-      console.log('No se encontró la película en la base de datos.');
-      return res.status(404).send('No se encontró la película.');
-    }
-
-    const pelicula = snapshot.docs[0].data();
-    
-
-    return res.status(200).json(pelicula);
-  } catch (error) {
-    console.error('Error al realizar la consulta a la base de datos:', error);
-    return res.status(500).send('Error al obtener los datos de la base de datos');
-  }
-});
 
 app.post('/makeReview', async (req, res) => {
   try {
@@ -104,6 +68,222 @@ app.post('/makeReview', async (req, res) => {
 });
 
 
+// ingresa el usuario correo y contrasena al sistema
+app.post('/signUp', async (req, res) => {
+  try {
+    const { userName, password, email } = req.body;
+
+    // Verificar si ya existe un usuario con el mismo nombre de usuario
+    const querySnapshot = await db.collection('user')
+      .where('userName', '==', userName)
+      .get();
+
+    if (!querySnapshot.empty) {
+      return res.status(400).send('El nombre de usuario ya está en uso. Por favor, elija otro nombre de usuario.');
+    }
+
+    // Crear un nuevo documento en la colección 'user'
+    const newUserRef = await db.collection('user').add({
+      userName,
+      password,
+      email
+    });
+
+    return res.status(200).send('El usuario se ha registrado correctamente.');
+  } catch (error) {
+    console.error('Error al registrar el usuario en la base de datos:', error);
+    return res.status(500).send('Error al registrar el usuario en la base de datos');
+  }
+});
+
+
+app.post('/searchMovie', async (req, res) => {
+  try {
+    const { title } = req.body;
+
+    // Realizar la consulta a la base de datos para obtener la película con el nombre dado
+    const movieSnapshot = await db.collection('movies').where('title', '==', title).get();
+
+    if (movieSnapshot.empty) {
+      console.log('No se encontró la película en la base de datos.');
+      return res.status(404).send('No se encontró la película.');
+    }
+
+    const movie = movieSnapshot.docs[0].data();
+
+    // Obtener las reseñas que coincidan con el título de la película correspondiente
+    const reviewSnapshot = await db.collection('review')
+      .where('title', '==', title)
+      .get();
+
+    const userReviews = reviewSnapshot.docs.map(doc => doc.data());
+
+    let sumRates = 0;
+    for (let review of userReviews) {
+      sumRates += review.rate;
+    }
+    const averageRate = sumRates / userReviews.length;
+
+    const responseData = {
+      movie,
+      userReviews,
+      averageRate
+    };
+
+    return res.status(200).json(responseData);
+  } catch (error) {
+    console.error('Error al realizar la consulta a la base de datos:', error);
+    return res.status(500).send('Error al obtener los datos de la base de datos');
+  }
+});
+
+app.get('/titlesPosterDB', async (req, res) => {
+  try {
+    
+    const desc = await ObtainMoviesTittlePosterBD();
+    
+    return res.json(desc);
+  } catch (error) {
+    console.error('Error al obtener los datos de la API:', error);
+    return res.status(500).json({ error: 'Error al obtener los datos de la API' });
+  }
+});
+
+
+
+//*-*-*-*-*-*-*-*-*-*-*-*FUNCIONES*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*FUNCIONES-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*FUNCIONES--*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+// funcion que actualiza la informacion recolectada desde la api
+function updateAPIData() {
+  fetch(apiURL)
+    .then(response => response.json())
+    .then(data => {
+      apiData = data; // Actualizo la variable apiData
+      agregarPeliculas(apiData)
+      //cinemashowsActualization(apiData)
+
+      console.log('obtencion de data del api actualizada correctamente:');
+    })
+    .catch(error => {
+      console.error('Error al actualziar api:', error);
+    });
+}
+
+
+// consulto la base de datos para que me retorne las tuplas titulo y posterURL en formato json
+async function ObtainMoviesTittlePosterBD() {
+  try {
+    const snapshot = await db.collection('movies').where('cinemaShows', '==', true).get();
+
+    const movies = [];
+
+    snapshot.forEach((doc) => {
+      const movieData = doc.data();
+      const movieTitle = movieData.title;
+      const moviePosterURL = movieData.poster;
+      movies.push({ title: movieTitle, posterURL: moviePosterURL });
+    });
+
+    return movies;
+  } catch (error) {
+    console.error('Error al obtener las películas en cinemaShows:', error);
+    throw new Error('Error al obtener las películas en cinemaShows');
+  }
+}
+
+
+
+
+  // esta es la funcion que vamos a utilizar para agregar peliculas
+  async function agregarPeliculas(data) {
+    try {
+      // Obtener todas las películas de la base de datos
+      const snapshot = await db.collection('movies').get();
+      const existingMovies = [];
+  
+      // Obtener los títulos de las películas existentes en la base de datos
+      snapshot.forEach((doc) => {
+        const movie = doc.data();
+        const movieTitle = movie.title;
+        existingMovies.push(movieTitle);
+      });
+  
+      const moviesToAdd = [];
+  
+      // Verificar cada película en la respuesta de la API
+      data.contentCinemaShows.forEach((movieData) => {
+        const movieTitle = movieData.movie;
+  
+        // Verificar si el título de la película no está en la lista de películas existentes
+        if (!existingMovies.includes(movieTitle)) {
+          // Crear un objeto con los datos de la película a agregar
+          const newMovie = {
+            cinemaShows: true,
+            description: movieData.description,
+            poster: movieData.posterURL,
+            title: movieData.movie,
+            trailer: movieData.trailerURL
+          };
+  
+          // Agregar la película a la lista de películas a agregar
+          moviesToAdd.push(newMovie);
+        }
+      });
+      
+      // Agregar las películas a la base de datos
+      const batch = db.batch();
+      moviesToAdd.forEach((movieData) => {
+        const newMovieRef = db.collection('movies').doc();
+        batch.set(newMovieRef, movieData);
+      });
+      await batch.commit();
+  
+      return moviesToAdd;
+    } catch (error) {
+      console.error('Error al agregar las películas a la base de datos:', error);
+      throw new Error('Error al agregar las películas a la base de datos');
+    }
+  }
+
+
+
+  //asigno cinemaShoes = false a todas las peliculas que no esten en la lista y true si estan 
+  /*async function cinemashowsActualization(data) {
+    try {
+      // Obtener todas las películas de la base de datos
+      const snapshot = await db.collection('movies').get();
+      const moviesToUpdate = [];
+      
+
+      // Verificar cada película en la base de datos
+      snapshot.forEach((doc) => {
+        const movie = doc.data();
+        const movieTitle = movie.title;
+  
+        // Verificar si el título de la película está en la lista de títulos a actualizar
+        if (data.includes(movieTitle)) {
+          // La película está en la lista, actualizar el estado a true
+          movie.cinemaShows = true;
+          moviesToUpdate.push(movie);
+  
+          // Actualizar la película en la base de datos
+          db.collection('movies').doc(doc.id).update({ cinemaShows: true });
+        } else {
+          // La película no está en la lista, actualizar el estado a false
+          movie.cinemaShows = false;
+          moviesToUpdate.push(movie);
+  
+          // Actualizar la película en la base de datos
+          db.collection('movies').doc(doc.id).update({ cinemaShows: false });
+        }
+      });
+  
+      return moviesToUpdate;
+    } catch (error) {
+      console.error('Error al obtener las películas de la base de datos o actualizar el estado:', error);
+      throw new Error('Error al obtener las películas de la base de datos o actualizar el estado');
+    }
+  }*/
 
 
 
@@ -164,19 +344,7 @@ app.post('/consultaPelicula', async (req, res) => {
 
 
 
-app.get('/titlesPosterDB', async (req, res) => {
-  try {
-    const response = await fetch(apiURL);
-    const data = await response.json();
 
-    const desc = await ObtainMoviesTittlePosterBD();
-    
-    return res.json(desc);
-  } catch (error) {
-    console.error('Error al obtener los datos de la API:', error);
-    return res.status(500).json({ error: 'Error al obtener los datos de la API' });
-  }
-});
 
 
 
@@ -309,93 +477,8 @@ function getMovieTitles(json) {
 
 
 
-  //asigno cinemaShoes = false a todas las peliculas que no esten en la lista y true si estan 
-  async function cinemashowsActualization(data) {
-    try {
-      // Obtener todas las películas de la base de datos
-      const snapshot = await db.collection('movies').get();
-      const moviesToUpdate = [];
   
-      // Verificar cada película en la base de datos
-      snapshot.forEach((doc) => {
-        const movie = doc.data();
-        const movieTitle = movie.title;
   
-        // Verificar si el título de la película está en la lista de títulos a actualizar
-        if (data.includes(movieTitle)) {
-          // La película está en la lista, actualizar el estado a true
-          movie.cinemaShows = true;
-          moviesToUpdate.push(movie);
-  
-          // Actualizar la película en la base de datos
-          db.collection('movies').doc(doc.id).update({ cinemaShows: true });
-        } else {
-          // La película no está en la lista, actualizar el estado a false
-          movie.cinemaShows = false;
-          moviesToUpdate.push(movie);
-  
-          // Actualizar la película en la base de datos
-          db.collection('movies').doc(doc.id).update({ cinemaShows: false });
-        }
-      });
-  
-      return moviesToUpdate;
-    } catch (error) {
-      console.error('Error al obtener las películas de la base de datos o actualizar el estado:', error);
-      throw new Error('Error al obtener las películas de la base de datos o actualizar el estado');
-    }
-  }
-  
-  // esta es la funcion que vamos a utilizar para agregar peliculas
-  async function agregarPeliculas(data) {
-    try {
-      // Obtener todas las películas de la base de datos
-      const snapshot = await db.collection('movies').get();
-      const existingMovies = [];
-  
-      // Obtener los títulos de las películas existentes en la base de datos
-      snapshot.forEach((doc) => {
-        const movie = doc.data();
-        const movieTitle = movie.title;
-        existingMovies.push(movieTitle);
-      });
-  
-      const moviesToAdd = [];
-  
-      // Verificar cada película en la respuesta de la API
-      data.contentCinemaShows.forEach((movieData) => {
-        const movieTitle = movieData.movie;
-  
-        // Verificar si el título de la película no está en la lista de películas existentes
-        if (!existingMovies.includes(movieTitle)) {
-          // Crear un objeto con los datos de la película a agregar
-          const newMovie = {
-            cinemaShows: true,
-            description: movieData.description,
-            poster: movieData.posterURL,
-            title: movieData.movie,
-            trailer: movieData.trailerURL
-          };
-  
-          // Agregar la película a la lista de películas a agregar
-          moviesToAdd.push(newMovie);
-        }
-      });
-      
-      // Agregar las películas a la base de datos
-      const batch = db.batch();
-      moviesToAdd.forEach((movieData) => {
-        const newMovieRef = db.collection('movies').doc();
-        batch.set(newMovieRef, movieData);
-      });
-      await batch.commit();
-  
-      return moviesToAdd;
-    } catch (error) {
-      console.error('Error al agregar las películas a la base de datos:', error);
-      throw new Error('Error al agregar las películas a la base de datos');
-    }
-  }
   
   
 
@@ -433,24 +516,5 @@ function getMovieTitles(json) {
     }
   }
   
-// consulto la base de datos para que me retorne las tuplas titulo y posterURL en formato json
-  async function ObtainMoviesTittlePosterBD() {
-    try {
-      const snapshot = await db.collection('movies').where('cinemaShows', '==', true).get();
-  
-      const movies = [];
-  
-      snapshot.forEach((doc) => {
-        const movieData = doc.data();
-        const movieTitle = movieData.title;
-        const moviePosterURL = movieData.poster;
-        movies.push({ title: movieTitle, posterURL: moviePosterURL });
-      });
-  
-      return movies;
-    } catch (error) {
-      console.error('Error al obtener las películas en cinemaShows:', error);
-      throw new Error('Error al obtener las películas en cinemaShows');
-    }
-  }
+
   
