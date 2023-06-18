@@ -72,10 +72,10 @@ app.post('/makeReview', async (req, res) => {
 app.post('/signUp', async (req, res) => {
   try {
     const { userName, password, email } = req.body;
-
     // Verificar si ya existe un usuario con el mismo nombre de usuario
     const querySnapshot = await db.collection('user')
       .where('userName', '==', userName)
+      .where('password', '==', password)
       .get();
 
     if (!querySnapshot.empty) {
@@ -149,7 +149,115 @@ app.get('/titlesPosterDB', async (req, res) => {
   }
 });
 
+app.post('/login', async (req, res) => {
+  try {
+    const { userName, password } = req.body;
 
+    // Verificar si el usuario y la contraseña son válidos
+    const querySnapshot = await db
+      .collection('user')
+      .where('userName', '==', userName)
+      .where('password', '==', password)
+      .get();
+
+    if (!querySnapshot.empty) {
+      // El usuario y la contraseña son correctos
+      return res.status(200).send('Inicio de sesión exitoso.');
+    } else {
+      // El usuario o la contraseña son incorrectos
+      return res.status(400).send('Usuario o contraseña incorrectos.');
+    }
+  } catch (error) {
+    console.error('Error al realizar el inicio de sesión:', error);
+    return res.status(500).send('Error al realizar el inicio de sesión.');
+  }
+});
+
+// obtengo el top 10 peliculas en cartelera
+app.get('/rankingShow', async (req, res) => {
+  try {
+    const moviesRef = db.collection('movies');
+    const reviewRef = db.collection('review');
+
+    // Obtener las películas con cinemaShows = true
+    const moviesSnapshot = await moviesRef.where('cinemaShows', '==', true).get();
+
+    const movies = [];
+
+    // Obtener las calificaciones de las películas
+    for (const movieDoc of moviesSnapshot.docs) {
+      const movieData = movieDoc.data();
+      const { title, posterURL, description } = movieData;
+
+      // Obtener las calificaciones de la película actual
+      const reviewsSnapshot = await reviewRef
+        .where('title', '==', title)
+        .get();
+
+      const ratings = [];
+      reviewsSnapshot.forEach(reviewDoc => {
+        const reviewData = reviewDoc.data();
+        ratings.push(reviewData.rate);
+      });
+
+      // Calcular el promedio de calificaciones
+      let sumRating = 0
+      ratings.forEach(item =>{
+        sumRating = sumRating + item
+      });
+      //const sumRating = ratings.reduce((total, rate) => total + rate, 0);
+      let averageRating = sumRating / ratings.length;
+
+
+      //console.log(title+"  "+averageRating)
+      
+      if (isNaN(averageRating)) {
+        averageRating = 0;
+      }
+
+      movies.push({
+        title,
+        averageRating,
+        posterURL,
+        description
+      });
+      
+    }
+
+    // Ordenar las películas por calificación promedio de mayor a menor
+    movies.sort((a, b) => b.averageRating - a.averageRating);
+    
+    // Limitar a las primeras 10 películas
+    const top10Movies = movies.slice(0, 10);
+    console.log(top10Movies)
+    return res.status(200).json(top10Movies);
+  } catch (error) {
+    console.error('Error al obtener el ranking de películas:', error);
+    return res.status(500).send('Error al obtener el ranking de películas');
+  }
+});
+
+// se obtienen todas las resenas del usuario preguntado
+app.post('/userReview', async (req, res) => {
+  try {
+    const { userName } = req.body;
+    const reviewRef = db.collection('review');
+    const querySnapshot = await reviewRef.where('userName', '==', userName).get();
+    const reviews = [];
+
+    querySnapshot.forEach(reviewDoc => {
+      const reviewData = reviewDoc.data();
+      const { rate, title, review } = reviewData;
+      
+      reviews.push({ rate, title, review });
+    });
+
+    return res.status(200).json(reviews);
+  } catch (error) {
+    console.error('Error al obtener las reseñas del usuario:', error);
+    return res.status(500).send('Error al obtener las reseñas del usuario');
+  }
+});
 
 //*-*-*-*-*-*-*-*-*-*-*-*FUNCIONES*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*FUNCIONES-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*FUNCIONES--*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 
@@ -160,7 +268,7 @@ function updateAPIData() {
     .then(data => {
       apiData = data; // Actualizo la variable apiData
       agregarPeliculas(apiData)
-      //cinemashowsActualization(apiData)
+      cinemashowsActualization(apiData)
 
       console.log('obtencion de data del api actualizada correctamente:');
     })
@@ -248,12 +356,14 @@ async function ObtainMoviesTittlePosterBD() {
 
 
   //asigno cinemaShoes = false a todas las peliculas que no esten en la lista y true si estan 
-  /*async function cinemashowsActualization(data) {
+  async function cinemashowsActualization(data) {
     try {
       // Obtener todas las películas de la base de datos
       const snapshot = await db.collection('movies').get();
       const moviesToUpdate = [];
       
+       // obtengo las peliculas y creo una lista con los nombres
+       data = getMovieTitles(data)
 
       // Verificar cada película en la base de datos
       snapshot.forEach((doc) => {
@@ -283,8 +393,20 @@ async function ObtainMoviesTittlePosterBD() {
       console.error('Error al obtener las películas de la base de datos o actualizar el estado:', error);
       throw new Error('Error al obtener las películas de la base de datos o actualizar el estado');
     }
-  }*/
+  }
 
+  function getMovieTitles(json) {
+    const movieTitles = [];
+  
+    // Recorrer el arreglo "contentCinemaShows"
+    json.contentCinemaShows.forEach((content) => {
+      // Obtener el título de la película y agregarlo al array
+      const movieTitle = content.movie;
+      movieTitles.push(movieTitle);
+    });
+  
+    return movieTitles;
+  }
 
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------
