@@ -187,8 +187,7 @@ app.get('/rankingShow', async (req, res) => {
     // Obtener las calificaciones de las películas
     for (const movieDoc of moviesSnapshot.docs) {
       const movieData = movieDoc.data();
-      const { title, posterURL, description } = movieData;
-
+      const { title, poster, description } = movieData;
       // Obtener las calificaciones de la película actual
       const reviewsSnapshot = await reviewRef
         .where('title', '==', title)
@@ -218,7 +217,7 @@ app.get('/rankingShow', async (req, res) => {
       movies.push({
         title,
         averageRating,
-        posterURL,
+        poster,
         description
       });
       
@@ -229,7 +228,6 @@ app.get('/rankingShow', async (req, res) => {
     
     // Limitar a las primeras 10 películas
     const top10Movies = movies.slice(0, 10);
-    console.log(top10Movies)
     return res.status(200).json(top10Movies);
   } catch (error) {
     console.error('Error al obtener el ranking de películas:', error);
